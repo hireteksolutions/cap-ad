@@ -4,13 +4,13 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 export default defineConfig(({ mode }) => ({
-  base: "./", // ✅ ensures relative asset paths work in production
+  base: "/", // ✅ FIXED (IMPORTANT)
   server: {
     host: "::",
     port: 8080,
   },
   build: {
-    outDir: "dist", // ✅ output folder for Vercel
+    outDir: "dist",
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
@@ -19,3 +19,4 @@ export default defineConfig(({ mode }) => ({
     },
   },
 }));
+
