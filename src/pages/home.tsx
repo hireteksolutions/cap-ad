@@ -290,7 +290,7 @@ export default function CAP360LandingPage() {
             </div>
             <div className="order-1 md:order-2">
               <img 
-                src="https://images.smiletemplates.com/uploads/screenshots/243/0000243129/powerpoint-template-450w.jpg"
+                src="https://images.unsplash.com/photo-1698047682091-782b1e5c6536?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                 alt="Professional interview"
                 className="rounded-lg shadow-lg w-full"
               />
