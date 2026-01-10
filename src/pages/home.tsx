@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Zap, Users, Award } from 'lucide-react';
+import { Zap, Users, Award, Check, ChevronsUpDown } from 'lucide-react';
 import header from '../assets/hearder.jpg';
+import { DESIGNATIONS } from '../constants/designations';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../components/ui/command';
+import { cn } from '../lib/utils';
 // import cap_Logo from '../assets/CAP_LOGO.png';
 
 const Countdown = ({ targetDate }: { targetDate: Date | string }) => {
@@ -55,25 +59,246 @@ export default function CAP360LandingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [errors, setErrors] = useState<any>({});
+  const [designationOpen, setDesignationOpen] = useState(false);
+  const [designationTriggerWidth, setDesignationTriggerWidth] = useState<number>(0);
 
   const allowedLocations = [
     'Mumbai', 'Delhi', 'Bengaluru', 'Chennai', 'Kolkata',
     'Hyderabad', 'Pune', 'Noida', 'Gurgaon', 'Ahmedabad'
   ];
 
+  const salaryRanges = [
+    { value: '5-10', label: '₹5-10 Lacs' },
+    { value: '10-20', label: '₹10-20 Lacs' },
+    { value: '20-30', label: '₹20-30 Lacs' },
+    { value: '30-40', label: '₹30-40 Lacs' },
+    { value: '40-50', label: '₹40-50 Lacs' },
+    { value: '50-75', label: '₹50-75 Lacs' },
+    { value: '75-100', label: '₹75-100 Lacs' },
+    { value: '100-150', label: '₹100-150 Lacs' },
+    { value: '150-200', label: '₹150-200 Lacs' },
+    { value: '200+', label: '₹200+ Lacs' }
+  ];
+
+  // Validation functions
+  const validateName = (name: string): string | undefined => {
+    if (!name.trim()) {
+      return 'Full name is required';
+    }
+    
+    const trimmedName = name.trim();
+    
+    // Check for multiple consecutive spaces
+    if (/\s{2,}/.test(name)) {
+      return 'Name cannot contain multiple consecutive spaces';
+    }
+    
+    // Check for proper format: only letters and spaces, no consecutive spaces, no leading/trailing spaces
+    if (!/^[A-Za-z]+(?:\s+[A-Za-z]+)+$/.test(trimmedName)) {
+      return 'Please enter your full name (First Name and Last Name)';
+    }
+    
+    // Split name into words
+    const nameParts = trimmedName.split(/\s+/);
+    
+    // Require at least 2 words (first name and last name)
+    if (nameParts.length < 2) {
+      return 'Please enter your full name with first name and last name';
+    }
+    
+    // Check minimum length for each word (at least 2 characters per word)
+    for (let i = 0; i < nameParts.length; i++) {
+      if (nameParts[i].length < 2) {
+        return 'Each name part must be at least 2 characters long';
+      }
+      if (nameParts[i].length > 20) {
+        return 'Each name part must be less than 20 characters';
+      }
+    }
+    
+    // Check total length
+    if (trimmedName.length < 4) {
+      return 'Full name must be at least 4 characters';
+    }
+    if (trimmedName.length > 30) {
+      return 'Full name must be less than 30 characters';
+    }
+    
+    return undefined;
+  };
+
+  const validateEmail = (email: string): string | undefined => {
+    if (!email.trim()) {
+      return 'Email is required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return 'Please enter a valid email address';
+    }
+    return undefined;
+  };
+
+  const validatePhone = (phone: string): string | undefined => {
+    if (!phone.trim()) {
+      return 'Phone number is required';
+    }
+    // Indian phone number validation: 10 digits
+    if (!/^\d{10}$/.test(phone)) {
+      return 'Phone number must be exactly 10 digits';
+    }
+    // Check if starts with valid digit (1-9, not 0)
+    if (!/^[1-9]/.test(phone)) {
+      return 'Phone number cannot start with 0';
+    }
+    return undefined;
+  };
+
+  const validateCTC = (ctc: string): string | undefined => {
+    if (!ctc.trim()) {
+      return 'Please select a salary range';
+    }
+    // Validate that the selected value is from the allowed salary ranges
+    const isValidRange = salaryRanges.some(range => range.value === ctc);
+    if (!isValidRange) {
+      return 'Please select a valid salary range';
+    }
+    return undefined;
+  };
+
+  const validateLocation = (location: string): string | undefined => {
+    if (!location.trim()) {
+      return 'Please select a location';
+    }
+    if (!allowedLocations.includes(location)) {
+      return 'Please select a valid location';
+    }
+    return undefined;
+  };
+
+  const validateDesignation = (designation: string): string | undefined => {
+    if (!designation.trim()) {
+      return 'Designation is required';
+    }
+    if (!DESIGNATIONS.includes(designation)) {
+      return 'Please select a valid designation';
+    }
+    return undefined;
+  };
+
   const handleChange = (e: any) => {
     const { name, value } = e.target;
     let newValue = value;
 
-    if (name === 'phone' || name === 'CTC') newValue = value.replace(/\D/g, '');
-    if (['fullName', 'Location', 'designation'].includes(name))
-      newValue = value.replace(/[^A-Za-z\s]/g, '');
+    if (name === 'phone') {
+      newValue = value.replace(/\D/g, '');
+    }
+    if (name === 'fullName') {
+      // Only allow letters and single spaces, prevent multiple consecutive spaces
+      newValue = value.replace(/[^A-Za-z\s]/g, '').replace(/\s{2,}/g, ' ');
+    }
 
     setFormData({ ...formData, [name]: newValue });
-    setErrors({ ...errors, [name]: undefined });
+    // Clear error for this field when user starts typing/selecting
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: undefined });
+    }
+
+    // Validate select fields (CTC and Location) immediately on change
+    if (name === 'CTC') {
+      const ctcError = validateCTC(newValue);
+      if (ctcError) {
+        setErrors({ ...errors, CTC: ctcError });
+      }
+    }
+    if (name === 'Location') {
+      const locationError = validateLocation(newValue);
+      if (locationError) {
+        setErrors({ ...errors, Location: locationError });
+      }
+    }
   };
 
-  const handleSubmit = async () => {
+  const handleDesignationSelect = (selectedDesignation: string) => {
+    setFormData({ ...formData, designation: selectedDesignation });
+    setDesignationOpen(false);
+    // Clear error and validate
+    if (errors.designation) {
+      setErrors({ ...errors, designation: undefined });
+    }
+    const designationError = validateDesignation(selectedDesignation);
+    if (designationError) {
+      setErrors({ ...errors, designation: designationError });
+    }
+  };
+
+  const handleBlur = (e: any) => {
+    const { name, value } = e.target;
+    
+    // Trim whitespace for text fields
+    if (['fullName', 'email'].includes(name)) {
+      const trimmedValue = value.trim();
+      
+      if (trimmedValue !== value) {
+        setFormData({ ...formData, [name]: trimmedValue });
+      }
+      
+      // Validate the field on blur
+      let fieldError: string | undefined;
+      if (name === 'fullName') {
+        fieldError = validateName(trimmedValue);
+      } else if (name === 'email') {
+        fieldError = validateEmail(trimmedValue);
+      }
+      
+      if (fieldError) {
+        setErrors({ ...errors, [name]: fieldError });
+      }
+    }
+    
+    // Validate phone on blur
+    if (name === 'phone') {
+      const phoneError = validatePhone(formData.phone);
+      if (phoneError) {
+        setErrors({ ...errors, phone: phoneError });
+      }
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: any = {};
+
+    const nameError = validateName(formData.fullName);
+    if (nameError) newErrors.fullName = nameError;
+
+    const emailError = validateEmail(formData.email);
+    if (emailError) newErrors.email = emailError;
+
+    const phoneError = validatePhone(formData.phone);
+    if (phoneError) newErrors.phone = phoneError;
+
+    const ctcError = validateCTC(formData.CTC);
+    if (ctcError) newErrors.CTC = ctcError;
+
+    const locationError = validateLocation(formData.Location);
+    if (locationError) newErrors.Location = locationError;
+
+    const designationError = validateDesignation(formData.designation);
+    if (designationError) newErrors.designation = designationError;
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await fetch(
@@ -87,7 +312,11 @@ export default function CAP360LandingPage() {
       );
       setShowSuccess(true);
       setFormData({ fullName: '', email: '', phone: '', CTC: '', Location: '', designation: '' });
+      setErrors({});
       setTimeout(() => setShowSuccess(false), 5000);
+    } catch (error) {
+      console.error('Form submission error:', error);
+      setErrors({ submit: 'Failed to submit form. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -137,44 +366,182 @@ export default function CAP360LandingPage() {
                  Share your details and our team will connect with you to discuss the next steps and engagement options.
                 </p>
 
-                <div className="space-y-4">
-                  {['fullName', 'designation', 'email', 'phone', 'CTC'].map((field, i) => (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Full Name Field */}
+                  <div>
                     <input
-                      key={i}
-                      name={field}
-                      placeholder={field.toUpperCase()}
-                      value={(formData as any)[field]}
+                      name="fullName"
+                      placeholder="FULL NAME"
+                      value={formData.fullName}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 sm:py-3.5 border rounded-lg text-sm sm:text-base"
+                      onBlur={handleBlur}
+                      maxLength={30}
+                      className={`w-full px-4 py-3 sm:py-3.5 border rounded-lg text-sm sm:text-base ${
+                        errors.fullName ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
+                      } focus:outline-none focus:ring-2`}
                     />
-                  ))}
+                    {errors.fullName && (
+                      <p className="text-red-500 text-xs mt-1 ml-1">{errors.fullName}</p>
+                    )}
+                  </div>
 
-                  <select
-                    name="Location"
-                    value={formData.Location}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 sm:py-3.5 border rounded-lg text-sm sm:text-base"
-                  >
-                    <option value="">Select Location</option>
-                    {allowedLocations.map(loc => (
-                      <option key={loc}>{loc}</option>
-                    ))}
-                  </select>
+                  {/* Designation Field */}
+                  <div>
+                    <Popover open={designationOpen} onOpenChange={setDesignationOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          role="combobox"
+                          aria-expanded={designationOpen}
+                          ref={(el) => {
+                            if (el) {
+                              setDesignationTriggerWidth(el.offsetWidth);
+                            }
+                          }}
+                          className={cn(
+                            "w-full px-4 py-3 sm:py-3.5 border rounded-lg text-sm sm:text-base justify-between flex items-center text-left",
+                            errors.designation 
+                              ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
+                              : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500',
+                            !formData.designation && "text-gray-500"
+                          )}
+                        >
+                          {formData.designation || "DESIGNATION"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent 
+                        className="p-0" 
+                        align="start"
+                        style={{ width: designationTriggerWidth > 0 ? `${designationTriggerWidth}px` : 'auto', minWidth: '300px' }}
+                      >
+                        <Command>
+                          <CommandInput placeholder="Search designation..." className="h-9" />
+                          <CommandList>
+                            <CommandEmpty>No designation found.</CommandEmpty>
+                            <CommandGroup>
+                              {DESIGNATIONS.map((designation) => (
+                                <CommandItem
+                                  key={designation}
+                                  value={designation}
+                                  onSelect={() => handleDesignationSelect(designation)}
+                                >
+                                  {designation}
+                                  <Check
+                                    className={cn(
+                                      "ml-auto h-4 w-4",
+                                      formData.designation === designation ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    {errors.designation && (
+                      <p className="text-red-500 text-xs mt-1 ml-1">{errors.designation}</p>
+                    )}
+                  </div>
+
+                  {/* Email Field */}
+                  <div>
+                    <input
+                      type="email"
+                      name="email"
+                      placeholder="EMAIL"
+                      value={formData.email}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className={`w-full px-4 py-3 sm:py-3.5 border rounded-lg text-sm sm:text-base ${
+                        errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
+                      } focus:outline-none focus:ring-2`}
+                    />
+                    {errors.email && (
+                      <p className="text-red-500 text-xs mt-1 ml-1">{errors.email}</p>
+                    )}
+                  </div>
+
+                  {/* Phone Field */}
+                  <div>
+                    <input
+                      type="tel"
+                      name="phone"
+                      placeholder="PHONE"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      maxLength={10}
+                      className={`w-full px-4 py-3 sm:py-3.5 border rounded-lg text-sm sm:text-base ${
+                        errors.phone ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
+                      } focus:outline-none focus:ring-2`}
+                    />
+                    {errors.phone && (
+                      <p className="text-red-500 text-xs mt-1 ml-1">{errors.phone}</p>
+                    )}
+                  </div>
+
+                  {/* CTC Field */}
+                  <div>
+                    <select
+                      name="CTC"
+                      value={formData.CTC}
+                      onChange={handleChange}
+                      className={`w-full px-4 py-3 sm:py-3.5 border rounded-lg text-sm sm:text-base ${
+                        errors.CTC ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
+                      } focus:outline-none focus:ring-2`}
+                    >
+                      <option value="">Select Salary Range (CTC)</option>
+                      {salaryRanges.map(range => (
+                        <option key={range.value} value={range.value}>{range.label}</option>
+                      ))}
+                    </select>
+                    {errors.CTC && (
+                      <p className="text-red-500 text-xs mt-1 ml-1">{errors.CTC}</p>
+                    )}
+                  </div>
+
+                  {/* Location Field */}
+                  <div>
+                    <select
+                      name="Location"
+                      value={formData.Location}
+                      onChange={handleChange}
+                      className={`w-full px-4 py-3 sm:py-3.5 border rounded-lg text-sm sm:text-base ${
+                        errors.Location ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500'
+                      } focus:outline-none focus:ring-2`}
+                    >
+                      <option value="">Select Location</option>
+                      {allowedLocations.map(loc => (
+                        <option key={loc} value={loc}>{loc}</option>
+                      ))}
+                    </select>
+                    {errors.Location && (
+                      <p className="text-red-500 text-xs mt-1 ml-1">{errors.Location}</p>
+                    )}
+                  </div>
+
+                  {errors.submit && (
+                    <div className="bg-red-500 text-white p-3 rounded-lg text-center text-sm">
+                      {errors.submit}
+                    </div>
+                  )}
 
                   <button
-                    onClick={handleSubmit}
+                    type="submit"
                     disabled={isSubmitting}
-                    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3.5 rounded-lg font-semibold text-sm sm:text-base"
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 disabled:cursor-not-allowed text-white py-3.5 rounded-lg font-semibold text-sm sm:text-base transition-colors"
                   >
                     {isSubmitting ? 'Submitting...' : 'Speak With a Career Strategist'}
                   </button>
 
                   {showSuccess && (
                     <div className="bg-green-500 text-white p-3 rounded-lg text-center text-sm">
-                      ✓ Success! We’ll contact you soon.
+                      ✓ Success! We'll contact you soon.
                     </div>
                   )}
-                </div>
+                </form>
               </div>
 
             </div>
